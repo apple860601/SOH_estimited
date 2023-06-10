@@ -22,7 +22,8 @@ plotly_config = dict({"scrollZoom": True,'modeBarButtonsToAdd':[
                                        ]})
 features_list = ["CCCT","CVCT","V37_419","V38_419","V37_41","V38_41","cap"]
 f_len = len(features_list)
-pred_battery = ["B0036"]
+pred_battery = ["B0007"]
+pred_model = "LSTM"
 
 
 class temp(Dataset):
@@ -61,6 +62,51 @@ class temp(Dataset):
         target = torch.from_numpy(target).float()
 
         return input, target
+
+class LSTM(nn.Module):
+    def __init__(self):
+        super(LSTM, self).__init__()
+
+        self.input_size = f_len # input size : 輸入維度
+        self.hidden_size = 300 # hidden_size : 隱藏層的特徵維度
+        self.num_layers = 8 # hidden_size : LSTM隱藏層的層數
+        self.dropout = 0.1 # dropout : 每一層過後丟棄特定比例神經元
+
+        self.lstm = nn.LSTM(input_size = self.input_size, hidden_size  = self.hidden_size, bidirectional=True,
+                            num_layers = self.num_layers, dropout = self.dropout, batch_first = True)
+        for m in self.modules():
+            if type(m) in [nn.GRU, nn.LSTM, nn.RNN]:
+                for name, param in m.named_parameters():
+                    if 'weight_ih' in name:
+                        torch.nn.init.xavier_uniform_(param.data)
+                    elif 'weight_hh' in name:
+                        torch.nn.init.orthogonal_(param.data)
+                    elif 'bias' in name:
+                        param.data.fill_(0.1)
+
+        self.fc1 = nn.Linear(self.hidden_size*2, 600)#設定全連接層
+        self.fc2 = nn.Linear(600, 600)#設定全連接層
+        self.fc3 = nn.Linear(600, 600)#設定全連接層
+        self.fc4 = nn.Linear(600, 1)#設定全連接層
+
+
+    def forward(self, x):
+        # print(x.shape)
+        h_0 = torch.zeros([self.num_layers*2, x.shape[0], self.hidden_size], device = x.device)
+        c_0 = torch.zeros([self.num_layers*2, x.shape[0], self.hidden_size], device = x.device)
+
+        out, _ = self.lstm(x, (h_0.detach(), c_0.detach()))# x:新資料輸入 h0:上個隱藏層狀態 c0:上個細胞狀態
+        # print(out.shape)
+        out = self.fc1(func.tanh(out[:, -1, :]))#接收LSTM單元的輸出，並讓最後一層輸出
+        out = self.fc2(func.tanh(out))
+        out = self.fc3(func.tanh(out))
+        out = self.fc4(func.tanh(out))
+        # out3 = self.fc3(out2)
+        # out1 = func.tanh(self.fc1(out))
+        # out2 = func.tanh(self.fc2(out1))
+        # out3 = self.fc3(out2)#接收LSTM單元的輸出，並讓最後一層輸出
+
+        return out
 
 class GRU(nn.Module):
     def __init__(self):
@@ -111,8 +157,13 @@ pred_data = temp(pred_battery)
 data_len = 3 #要輸入的時序訊號長度
 
 device = torch.device('cuda')
-model = GRU()
-model.load_state_dict(torch.load("GRU_model.pth"))
+if pred_model=="GRU":
+    model = GRU()
+    model.load_state_dict(torch.load("GRU_model.pth"))
+elif pred_model=="LSTM":
+    model = LSTM()
+    model.load_state_dict(torch.load("LSTM_model.pth"))
+
 model = model.to(device)
 def pred(data):
     model.eval()
@@ -142,7 +193,7 @@ fig1 = px.line(df)
 fig1.update_layout(
     dragmode='drawopenpath',
     newshape_line_color='cyan',
-    title_text=f'{pred_battery}',
+    title_text=f'{pred_battery}_{pred_model}',
     xaxis_title="cycle", 
     yaxis_title="capacity/Ahr"
 )
