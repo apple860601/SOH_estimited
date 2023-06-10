@@ -1,5 +1,8 @@
 # Readme
-若要運行進行電池曲線預估，請運行Capacity_pred.py檔案，可藉由調整pred_battery這個參數來調整要預測的電池種類
+若要運行進行電池曲線預估，請運行Capacity_pred.py檔案，可藉由調整pred_battery這個參數來調整要預測的電池種類，pred_model來調整要預測的模型
+
 CNN_GRU_pred.ipynb、GRU_pred.ipynb、LSTM_pred.ipynb則為模型訓練與生成
+
 data_process.ipynb是進行資料處理與分類
+
 feature_extract則是做特徵提取
